@@ -1,337 +1,194 @@
-# 🤖 Agent Training Flow
+# Agent Training Flow
 
-## 📋 **TL;DR**
+## Overview
 
-Yes! Agents connect via the REST API and train autonomously. The environment provides:
-- **State** observation via API
-- **Actions** through CRUD operations  
-- **Rewards** from validation endpoints
-- **Episodes** with reset capability
+Agents connect via REST API and train autonomously through observation, action, and reward cycles.
 
----
-
-## 🔄 **How It Works**
+## Training Loop
 
 ```
-┌─────────────┐
-│   RL Agent  │
-│  (Training) │
-└──────┬──────┘
-       │
-       │ ① GET /api/rl/state
-       │    (Observe environment)
-       ▼
-┌─────────────────────────────┐
-│  Task Management            │
-│  RL Environment             │
-│  (Docker Container)         │
-│                             │
-│  • 15 management tasks      │
-│  • 24 RL validation tasks   │
-│  • REST API endpoints       │
-└─────────────────────────────┘
-       │
-       │ ② Response: state data
-       ▼
-┌─────────────┐
-│   RL Agent  │ ← Agent decides action
-│  (Policy)   │    based on neural net
-└──────┬──────┘
-       │
-       │ ③ PUT /api/tasks/5
-       │    {"status": "completed"}
-       │    (Execute action)
-       ▼
-┌─────────────────────────────┐
-│  Environment                │
-│  Updates State              │
-└─────────────────────────────┘
-       │
-       │ ④ POST /api/rl/validate/task_name
-       │    (Check if goal achieved)
-       ▼
-┌─────────────┐
-│   RL Agent  │
-│  Receives:  │
-│  {          │
-│   "reward": 15.0,           │
-│   "completed": true         │
-│  }                          │
-└──────┬──────┘
-       │
-       │ ⑤ Update neural network
-       │    (Learn from experience)
-       │
-       │ ⑥ Repeat thousands of times...
-       └──────→ 🎯 Trained Agent!
+Agent observes STATE          → GET /api/rl/state
+Agent decides ACTION           → Policy/neural network determines move
+Agent executes via API         → PUT/POST/DELETE /api/tasks/...
+Agent validates REWARD         → POST /api/rl/validate/{task_name}
+Agent learns from experience   → Update neural network weights
+Repeat                         → Continue for thousands of iterations
 ```
 
----
+## Example Training Flow
 
-## 💡 **Simple Example**
-
-### **Goal:** Train agent to complete 3 tasks
+### Goal: Train agent to complete 3 tasks
 
 ```python
 import requests
 
-# Agent's perspective:
 while training:
-    # 1. Where am I?
+    # 1. Observe environment
     state = requests.get("http://localhost:8000/api/rl/state").json()
-    # → {completion_rate: 20%, total_tasks: 15}
+    # Returns: {completion_rate: 20%, total_tasks: 15, ...}
     
-    # 2. What should I do?
-    # (Neural network decides, but for demo:)
-    action = "complete_task_5"
+    # 2. Decide action (neural network or policy)
+    action = agent.policy(state)
     
-    # 3. Do it!
+    # 3. Execute action
     requests.put("http://localhost:8000/api/tasks/5",
                  json={"status": "completed"})
     
-    # 4. Did I achieve a goal?
+    # 4. Validate goal achievement
     result = requests.post(
         "http://localhost:8000/api/rl/validate/complete_three_tasks"
     ).json()
     
-    # 5. Learn from result
+    # 5. Learn from reward
     if result["completed"]:
-        reward = result["reward"]  # +15 points!
-        # Update neural network: "that action was good"
+        agent.update_policy(reward=result["reward"])  # +15 points
 ```
 
----
+## State Space
 
-## 🎮 **Real Training Session**
+What the agent observes:
 
-```python
-from stable_baselines3 import PPO
-from gym_wrapper import TaskManagementEnv  # OpenAI Gym wrapper
-
-# 1. Create environment
-env = TaskManagementEnv("http://localhost:8000")
-
-# 2. Create agent with neural network
-agent = PPO("MlpPolicy", env, verbose=1)
-
-# 3. Train for 100,000 steps
-agent.learn(total_timesteps=100_000)
-
-# Behind the scenes, agent does:
-# - Observes state 100,000 times
-# - Takes 100,000 actions
-# - Gets rewards/penalties
-# - Updates neural network
-# - Learns optimal policy
-
-# 4. Use trained agent
-obs = env.reset()
-for _ in range(100):
-    action, _ = agent.predict(obs)
-    obs, reward, done, _ = env.step(action)
-```
-
----
-
-## 🎯 **What Agent Learns**
-
-After training, the agent learns strategies like:
-
-**Before Training (Random):**
-```
-Action: Delete random task
-Action: Create task with no title
-Action: Update task that doesn't exist
-→ Reward: 0 points
-```
-
-**After Training (Intelligent):**
-```
-Observe: "I need to complete 3 tasks"
-Strategy:
-  1. GET /api/tasks?status=todo
-  2. PUT /api/tasks/1 {"status": "completed"}
-  3. PUT /api/tasks/2 {"status": "completed"}
-  4. PUT /api/tasks/3 {"status": "completed"}
-  5. Validate → +15 points! ✅
-```
-
----
-
-## 📊 **State → Action → Reward**
-
-### **State (What Agent Sees):**
 ```json
 {
   "total_tasks": 15,
-  "completion_rate": 33.3,
   "tasks_by_status": {
     "todo": 6,
     "in_progress": 4,
-    "completed": 3
+    "completed": 3,
+    "archived": 2
   },
   "tasks_by_priority": {
-    "urgent": 1,
-    "high": 3
-  }
+    "low": 4,
+    "medium": 7,
+    "high": 3,
+    "urgent": 1
+  },
+  "completion_rate": 33.3,
+  "actions_taken": 42,
+  "current_reward": 75.0,
+  "episode_number": 1
 }
 ```
 
-### **Action (What Agent Does):**
-- Update task status
+## Action Space
+
+Available agent actions:
+- Update task status (PUT /api/tasks/{id})
 - Change task priority
 - Assign task to team member
 - Add tags
-- Create new task
-- Delete task
+- Create new task (POST /api/tasks)
+- Delete task (DELETE /api/tasks/{id})
 
-### **Reward (What Agent Gets):**
-- **+15 points** for completing 3 tasks
-- **+25 points** for clearing overdue tasks
-- **+40 points** for team collaboration
-- **+50 points** for clean slate
-- **0 points** if validation fails
+## Reward Structure
 
----
+Rewards by difficulty:
+- Easy tasks: 10-20 points
+- Medium tasks: 20-25 points
+- Hard tasks: 30-35 points
+- Very Hard tasks: 40-50 points
 
-## 🚀 **Progressive Learning**
+Total possible: 585 points
 
-### **Stage 1: Easy Tasks (Days 1-2)**
-Agent learns:
-- How to update task status
-- How to create tasks
-- Basic API interaction
+## Integration Methods
 
-**Tasks:** `create_urgent_task`, `complete_three_tasks`
+### 1. Direct API (Custom RL Code)
 
-### **Stage 2: Medium Tasks (Days 3-5)**
-Agent learns:
-- Strategic planning
-- Resource allocation
-- Priority management
-
-**Tasks:** `organize_by_priority`, `balance_workload`
-
-### **Stage 3: Hard Tasks (Days 6-10)**
-Agent learns:
-- Multi-step reasoning
-- Complex constraints
-- Optimization strategies
-
-**Tasks:** `achieve_80_completion`, `optimize_task_flow`
-
-### **Stage 4: Very Hard Tasks (Days 11+)**
-Agent learns:
-- Multi-agent coordination
-- Long-term planning
-- Complete environment mastery
-
-**Tasks:** `team_collaboration`, `clean_slate`
-
----
-
-## 🔧 **Integration Options**
-
-### **Option 1: Direct API (Simplest)**
 ```python
-# Your custom RL code
-agent.act_on_environment(api_url="http://localhost:8000")
+import requests
+
+class Agent:
+    def observe(self):
+        return requests.get("http://localhost:8000/api/rl/state").json()
+    
+    def act(self, action):
+        requests.put(f"http://localhost:8000/api/tasks/{action['id']}",
+                     json=action['updates'])
+    
+    def get_reward(self, task_name):
+        result = requests.post(
+            f"http://localhost:8000/api/rl/validate/{task_name}"
+        ).json()
+        return result['reward']
 ```
 
-### **Option 2: OpenAI Gym (Standard)**
+### 2. OpenAI Gym (Standard RL)
+
 ```python
-# Use any Gym-compatible library
-env = gym.make("TaskManagement-v0")
+import gym
+from stable_baselines3 import PPO
+
+# Create environment wrapper
+env = TaskManagementEnv("http://localhost:8000")
+
+# Train agent
 agent = PPO("MlpPolicy", env)
+agent.learn(total_timesteps=100000)
 ```
 
-### **Option 3: Anthropic Computer Use**
+### 3. Anthropic Computer Use
+
 ```python
 # Claude interacts via UI
-claude.use_computer(url="http://localhost:3000")
+client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    tools=[task_management_tool()],
+    messages=[{
+        "role": "user",
+        "content": "Complete 3 tasks in the system"
+    }]
+)
 ```
 
-### **Option 4: Browser Automation**
-```python
-# Selenium/Playwright
-driver.get("http://localhost:3000")
-driver.find_element_by_text("Complete Task").click()
+## Training Progression
+
+### Before Training
+Random actions, minimal rewards:
+```
+Episode 1:   Reward: 10   (random exploration)
+Episode 10:  Reward: 35   (discovering basics)
 ```
 
----
-
-## 📈 **Training Metrics**
-
-Track agent's progress:
-
-```python
-Episode 1:    Reward: 10   (random actions)
-Episode 10:   Reward: 35   (learning basics)
-Episode 50:   Reward: 120  (good strategies)
+### After Training
+Strategic actions, optimal rewards:
+```
 Episode 100:  Reward: 245  (mastering easy tasks)
-Episode 500:  Reward: 420  (handling complex tasks)
 Episode 1000: Reward: 550  (near-optimal policy)
 ```
 
----
+## Progressive Learning
 
-## 🎯 **Key Advantages**
+### Stage 1: Easy Tasks
+Agent learns basic API interaction and task manipulation.
+Tasks: `create_urgent_task`, `complete_three_tasks`
 
-✅ **REST API** - Any agent framework can connect  
-✅ **Stateless** - Easy to scale to parallel training  
-✅ **Containerized** - Consistent environment everywhere  
-✅ **Programmatic** - No human labeling needed  
-✅ **Diverse Tasks** - 24 different objectives  
-✅ **Progressive Difficulty** - Curriculum learning ready  
+### Stage 2: Medium Tasks
+Agent learns strategic planning and resource allocation.
+Tasks: `organize_by_priority`, `balance_workload`
 
----
+### Stage 3: Hard Tasks
+Agent learns multi-step reasoning and optimization.
+Tasks: `achieve_80_completion`, `optimize_task_flow`
 
-## 🔍 **Example Use Cases**
+### Stage 4: Very Hard Tasks
+Agent masters multi-agent coordination and complex constraints.
+Tasks: `team_collaboration`, `clean_slate`
 
-### **1. Research: Computer-Use Agents**
-Test how well agents can navigate UIs and complete multi-step tasks.
+## Key Advantages
 
-### **2. Production: Task Automation**
-Train agent to automatically triage, assign, and manage project tasks.
+- REST API enables any agent framework
+- Stateless design supports parallel training
+- Docker ensures consistent environments
+- Programmatic validation requires no human labeling
+- 24 diverse tasks provide rich training signal
+- Progressive difficulty enables curriculum learning
 
-### **3. Education: RL Learning**
-Teach students about RL with a tangible, visual environment.
+## Quick Start
 
-### **4. Benchmarking: Agent Comparison**
-Compare different RL algorithms on same task set.
+1. Start environment: `docker compose up --build`
+2. Run example agent: `python3 example_agent.py`
+3. Observe behavior in browser at http://localhost:3000
+4. Implement your RL algorithm
+5. Train and evaluate
 
-### **5. Development: Agent Testing**
-Test new agent architectures in controlled environment.
-
----
-
-## 🎓 **Learning Resources**
-
-**Included in this repo:**
-- `example_agent.py` - Simple agent demonstration
-- `AGENT_INTEGRATION.md` - Complete integration guide
-- OpenAI Gym wrapper code examples
-- DQN and PPO implementation examples
-
-**External resources:**
-- Stable Baselines3 docs
-- OpenAI Gym documentation
-- RLlib tutorials
-- Anthropic Computer Use API
-
----
-
-## ✅ **Quick Start Checklist**
-
-1. [ ] Environment running (`docker compose up`)
-2. [ ] Run example agent (`python3 example_agent.py`)
-3. [ ] Observe agent behavior in browser
-4. [ ] Read `AGENT_INTEGRATION.md`
-5. [ ] Implement your RL algorithm
-6. [ ] Train and evaluate
-7. [ ] Achieve 500+ points! 🏆
-
----
-
-**Bottom Line:** The environment is fully ready for autonomous agent training. Connect via API, observe state, take actions, get rewards, and learn! 🚀
-
+See [AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md) for complete code examples and integration guides.

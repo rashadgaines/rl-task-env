@@ -1,189 +1,150 @@
 # Setup Guide
 
-This guide will help you get the Task Management RL Environment up and running in minutes.
+Complete setup instructions for the Task Management RL Environment.
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
+- Docker (version 20.10 or higher)
+- Docker Compose (version 2.0 or higher)
 
-- **Docker** (version 20.10 or higher)
-- **Docker Compose** (version 2.0 or higher)
-
-### Check Your Installation
-
+Check your installation:
 ```bash
 docker --version
 docker-compose --version
 ```
 
-If you need to install Docker:
-- **Mac**: Download [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop)
-- **Windows**: Download [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop)
-- **Linux**: Follow the [official Docker installation guide](https://docs.docker.com/engine/install/)
+Installation links:
+- Mac: [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop)
+- Windows: [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop)
+- Linux: [Docker installation guide](https://docs.docker.com/engine/install/)
 
-## Quick Start (Recommended)
+## Quick Start
 
-### 1. Navigate to the Project Directory
-
-```bash
-cd /Users/rashadgaines/ex-rl-env
-```
-
-### 2. Launch the Application
+### 1. Launch Application
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
-This command will:
-- Build the backend Docker container
-- Build the frontend Docker container
-- Create a data volume for the database
+This will:
+- Build both frontend and backend containers
 - Initialize the SQLite database
-- Populate with realistic mock data
+- Populate with mock data
 - Start both services
 
-### 3. Access the Application
+### 2. Access
 
-Once you see the startup messages, open your browser:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Documentation: http://localhost:8000/docs
 
-- **Frontend UI**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
+### 3. Stop
 
-### 4. Stop the Application
-
-Press `Ctrl+C` in the terminal, then run:
-
+Press `Ctrl+C`, then:
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ## Development Setup
 
-If you want to run the services individually for development:
+Run services individually for development:
 
-### Backend Only
+### Backend
 
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Create a virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# Create data directory
-mkdir -p ../data
-
-# Run the server
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The backend will be available at http://localhost:8000
+Available at http://localhost:8000
 
-### Frontend Only
+### Frontend
 
 ```bash
-# Navigate to frontend directory
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start development server
 npm start
 ```
 
-The frontend will be available at http://localhost:3000
+Available at http://localhost:3000
 
-**Note**: Make sure the backend is running first, as the frontend depends on it.
+Note: Backend must be running first.
 
 ## Troubleshooting
 
 ### Port Already in Use
 
-If you see an error about ports 3000 or 8000 being in use:
-
+Mac/Linux:
 ```bash
-# Find and kill the process using port 8000 (Mac/Linux)
-lsof -ti:8000 | xargs kill -9
+lsof -ti:8000 | xargs kill -9  # Backend
+lsof -ti:3000 | xargs kill -9  # Frontend
+```
 
-# Find and kill the process using port 3000 (Mac/Linux)
-lsof -ti:3000 | xargs kill -9
-
-# On Windows, use:
+Windows:
+```bash
 netstat -ano | findstr :8000
 taskkill /PID <PID> /F
 ```
 
-Alternatively, modify the ports in `docker-compose.yml`:
-
+Or modify ports in `docker-compose.yml`:
 ```yaml
 services:
   backend:
     ports:
-      - "8001:8000"  # Changed from 8000:8000
-  
+      - "8001:8000"
   frontend:
     ports:
-      - "3001:3000"  # Changed from 3000:3000
+      - "3001:3000"
 ```
 
 ### Docker Build Fails
 
-If the Docker build fails:
-
-1. **Clear Docker cache**:
+Clear cache and rebuild:
 ```bash
-docker-compose down
+docker compose down
 docker system prune -a
-docker-compose up --build
+docker compose up --build
 ```
 
-2. **Check Docker resources**: Ensure Docker has enough memory allocated (at least 4GB recommended)
+Ensure Docker has at least 4GB memory allocated.
 
 ### Database Not Initializing
 
-If the database doesn't populate:
-
-1. **Remove the data volume**:
+Remove volume and rebuild:
 ```bash
-docker-compose down -v
-docker-compose up --build
+docker compose down -v
+docker compose up --build
 ```
 
-2. **Check logs**:
+Check logs:
 ```bash
-docker-compose logs backend
+docker compose logs backend
 ```
 
-### Frontend Can't Connect to Backend
+### Frontend Can't Connect
 
-1. **Check backend is running**:
+Verify backend is running:
 ```bash
 curl http://localhost:8000
 ```
 
-2. **Verify CORS configuration**: The backend should allow requests from `http://localhost:3000`
+Check CORS configuration allows `http://localhost:3000`.
 
-3. **Check environment variables**: In `frontend/src/services/api.js`, verify `API_URL` is correct
+Verify `API_URL` in `frontend/src/services/api.js`.
 
 ### Permission Issues (Linux)
-
-If you encounter permission issues on Linux:
 
 ```bash
 sudo chown -R $USER:$USER .
 chmod -R 755 .
 ```
 
-## Testing the Environment
+## Verification
 
-### 1. Check Backend Health
+### Backend Health
 
 ```bash
 curl http://localhost:8000
@@ -198,149 +159,70 @@ Expected response:
 }
 ```
 
-### 2. Test API Endpoints
+### API Endpoints
 
-Get all tasks:
 ```bash
-curl http://localhost:8000/api/tasks
+curl http://localhost:8000/api/tasks     # All tasks
+curl http://localhost:8000/api/rl/state  # RL state
 ```
 
-Get RL state:
-```bash
-curl http://localhost:8000/api/rl/state
-```
-
-### 3. Test Frontend
+### Frontend
 
 Open http://localhost:3000 and verify:
-- Tasks are displayed in the board
-- You can switch to the RL Dashboard tab
-- You can create new tasks
-- Filters work correctly
+- Tasks display in board
+- RL Dashboard tab works
+- Task creation functions
+- Filters operate correctly
 
-### 4. Test RL Validation
+### RL Validation
 
-In the RL Dashboard:
-1. Click on any RL task
+In RL Dashboard:
+1. Select an RL task
 2. Click "Validate"
-3. Check if validation results appear
-4. Verify rewards are calculated
+3. Verify results and rewards display
 
 ## Environment Variables
 
-### Backend
-
-Create `backend/.env` (optional):
+### Backend (`backend/.env`)
 
 ```env
 DATABASE_URL=sqlite:////data/tasks.db
 LOG_LEVEL=info
 ```
 
-### Frontend
-
-Create `frontend/.env` (optional):
+### Frontend (`frontend/.env`)
 
 ```env
 REACT_APP_API_URL=http://localhost:8000
 ```
 
-## Production Deployment
-
-For production deployment:
-
-### 1. Update Docker Compose
-
-Create `docker-compose.prod.yml`:
-
-```yaml
-version: '3.8'
-
-services:
-  backend:
-    build: ./backend
-    environment:
-      - DATABASE_URL=postgresql://user:pass@db:5432/tasks
-    command: gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
-    
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-```
-
-### 2. Build Frontend for Production
-
-```bash
-cd frontend
-npm run build
-```
-
-### 3. Use Production Server for Backend
-
-Update `backend/Dockerfile`:
-
-```dockerfile
-CMD ["gunicorn", "main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
-```
-
-## Next Steps
-
-1. **Explore the UI**: Navigate through the task board and RL dashboard
-2. **Test RL Tasks**: Try completing the validation tasks
-3. **Read the API Docs**: Visit http://localhost:8000/docs
-4. **Customize**: Modify the code to add new features
-5. **Integrate Agent**: Connect your RL agent to the API endpoints
-
-## Getting Help
-
-If you encounter any issues:
-
-1. Check the **Troubleshooting** section above
-2. Review the logs: `docker-compose logs`
-3. Consult the **README.md** for more details
-4. Check Docker and Docker Compose documentation
-
 ## Useful Commands
 
 ```bash
-# Start in detached mode (background)
-docker-compose up -d
+# Background mode
+docker compose up -d
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
-# Restart a specific service
-docker-compose restart backend
+# Restart service
+docker compose restart backend
 
-# Rebuild a specific service
-docker-compose up --build backend
+# Rebuild service
+docker compose up --build backend
 
-# Remove all containers and volumes
-docker-compose down -v
+# Remove all
+docker compose down -v
 
-# Execute commands in running container
-docker-compose exec backend bash
-docker-compose exec frontend sh
+# Execute in container
+docker compose exec backend bash
+docker compose exec frontend sh
 ```
 
 ## Development Tips
 
-1. **Hot Reload**: Both frontend and backend support hot reload in development mode
-2. **Database Reset**: Use the "Reset Environment" button in the RL Dashboard
-3. **API Testing**: Use the Swagger UI at http://localhost:8000/docs
-4. **Mock Data**: Modify `backend/mock_data.py` to customize initial data
-5. **New RL Tasks**: Add validation functions in `backend/rl_validator.py`
-
----
-
-**You're all set!** 🚀 Enjoy exploring the RL training environment!
-
+- Both services support hot reload
+- Reset environment via RL Dashboard button
+- Test API at http://localhost:8000/docs
+- Customize mock data in `backend/mock_data.py`
+- Add RL tasks in `backend/rl_validator.py`
