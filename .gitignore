@@ -53,8 +53,8 @@ PUBLISH_CHECKLIST.md
 PROJECT_SUMMARY.md
 HIGHLIGHTS.md
 PITCH.md
-
 PUBLISH.sh
+publish_to_github.sh
 
 # Logs
 *.log
